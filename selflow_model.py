@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import cv2
+import glob
 
 from six.moves import xrange
 from scipy import misc, io
@@ -81,50 +82,54 @@ class SelFlowModel(object):
     
                     
     def test(self, restore_model, save_dir, is_normalize_img=True):
-        dataset = BasicDataset(data_list_file=self.dataset_config['data_list_file'], img_dir=self.dataset_config['img_dir'], is_normalize_img=is_normalize_img)
-        save_name_list = dataset.data_list[:, -1]
-        iterator = dataset.create_one_shot_iterator(dataset.data_list, num_parallel_calls=self.num_input_threads)
-        batch_img0, batch_img1, batch_img2 = iterator.get_next()
-        img_shape = tf.shape(batch_img0)
-        h = img_shape[1]
-        w = img_shape[2]
-        
-        new_h = tf.where(tf.equal(tf.mod(h, 64), 0), h, (tf.to_int32(tf.floor(h / 64) + 1)) * 64)
-        new_w = tf.where(tf.equal(tf.mod(w, 64), 0), w, (tf.to_int32(tf.floor(w / 64) + 1)) * 64)
-        
-        batch_img0 = tf.image.resize_images(batch_img0, [new_h, new_w], method=1, align_corners=True)
-        batch_img1 = tf.image.resize_images(batch_img1, [new_h, new_w], method=1, align_corners=True)
-        batch_img2 = tf.image.resize_images(batch_img2, [new_h, new_w], method=1, align_corners=True)
-        
-        flow_fw, flow_bw = pyramid_processing(batch_img0, batch_img1, batch_img2, train=False, trainable=False, is_scale=True) 
-        flow_fw['full_res'] = flow_resize(flow_fw['full_res'], [h, w], method=1)
-        flow_bw['full_res'] = flow_resize(flow_bw['full_res'], [h, w], method=1)
-        
-        flow_fw_color = flow_to_color(flow_fw['full_res'], mask=None, max_flow=256)
-        flow_bw_color = flow_to_color(flow_bw['full_res'], mask=None, max_flow=256)
-        
-        restore_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) 
-        saver = tf.train.Saver(var_list=restore_vars)
-        sess = tf.Session()
-        sess.run(tf.global_variables_initializer()) 
-        sess.run(iterator.initializer) 
-        saver.restore(sess, restore_model)
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)           
-        for i in range(dataset.data_num):
-            np_flow_fw, np_flow_bw, np_flow_fw_color, np_flow_bw_color = sess.run([flow_fw['full_res'], flow_bw['full_res'], flow_fw_color, flow_bw_color])
-            misc.imsave('%s/flow_fw_color_%s.png' % (save_dir, save_name_list[i]), np_flow_fw_color[0])
-            misc.imsave('%s/flow_bw_color_%s.png' % (save_dir, save_name_list[i]), np_flow_bw_color[0])
-            write_flo('%s/flow_fw_%s.flo' % (save_dir, save_name_list[i]), np_flow_fw[0])
-            write_flo('%s/flow_bw_%s.flo' % (save_dir, save_name_list[i]), np_flow_bw[0])
-            print('Finish %d/%d' % (i+1, dataset.data_num))    
-         
-        
-
-        
-        
-    
-
-        
+        print('test')
+        all_folders=glob.glob(self.dataset_config['img_dir']+"/abnormal-frames-maskr-112/Train/*")
+        for folderpath in all_folders:
+            #processed_folders=['Abnormal001_x264','Abnormal011_x264','Abnormal021_x264','Abnormal031_x264','Abnormal041_x264','Abnormal051_x264','Abnormal061_x264','Abnormal002_x264','Abnormal012_x264','Abnormal022_x264','Abnormal032_x264','Abnormal042_x264','Abnormal052_x264','Abnormal062_x264','Abnormal003_x264','Abnormal013_x264','Abnormal023_x264','Abnormal033_x264','Abnormal043_x264','Abnormal053_x264','Abnormal063_x264','Abnormal004_x264','Abnormal014_x264','Abnormal024_x264','Abnormal034_x264','Abnormal044_x264','Abnormal054_x264','Abnormal064_x264','Abnormal005_x264','Abnormal015_x264','Abnormal025_x264','Abnormal035_x264','Abnormal045_x264','Abnormal055_x264','Abnormal065_x264','Abnormal006_x264','Abnormal016_x264','Abnormal026_x264','Abnormal036_x264','Abnormal046_x264','Abnormal056_x264','Abnormal007_x264','Abnormal017_x264','Abnormal027_x264','Abnormal037_x264','Abnormal047_x264','Abnormal057_x264','Abnormal008_x264','Abnormal018_x264','Abnormal028_x264','Abnormal038_x264','Abnormal048_x264','Abnormal058_x264','Abnormal009_x264','Abnormal019_x264','Abnormal029_x264','Abnormal039_x264','Abnormal049_x264','Abnormal059_x264','Abnormal010_x264','Abnormal020_x264','Abnormal030_x264','Abnormal040_x264','Abnormal050_x264','Abnormal060_x264']
+            folder_name=os.path.basename(folderpath)
+            #if folder_name in processed_folders:
+            #    continue
+            print(folder_name)
+            tf.reset_default_graph()    
+            try: 
+                # creating a folder named data 
+                if not os.path.exists(save_dir+'/abnormal-frames-maskr-112/Train/'+folder_name): 
+                    os.makedirs(save_dir+'/abnormal-frames-maskr-112/Train/'+folder_name)
+                    # if not created then raise error 
+            except OSError: 
+                print ('Error: Creating directory of data') 
+            dataset = BasicDataset(data_list_file=self.dataset_config['data_list_file']+"/abnormal-list/Train/"+folder_name+".txt", img_dir=folderpath, is_normalize_img=is_normalize_img)
+            save_name_list = dataset.data_list[:, -1]
+            iterator = dataset.create_one_shot_iterator(dataset.data_list, num_parallel_calls=self.num_input_threads)
+            batch_img0, batch_img1, batch_img2 = iterator.get_next()
+            img_shape = tf.shape(batch_img0)
+            h = img_shape[1]
+            w = img_shape[2]
             
-              
+            new_h = tf.where(tf.equal(tf.mod(h, 64), 0), h, (tf.to_int32(tf.floor(h / 64) + 1)) * 64)
+            new_w = tf.where(tf.equal(tf.mod(w, 64), 0), w, (tf.to_int32(tf.floor(w / 64) + 1)) * 64)
+            
+            batch_img0 = tf.image.resize_images(batch_img0, [new_h, new_w], method=1, align_corners=True)
+            batch_img1 = tf.image.resize_images(batch_img1, [new_h, new_w], method=1, align_corners=True)
+            batch_img2 = tf.image.resize_images(batch_img2, [new_h, new_w], method=1, align_corners=True)
+            
+            flow_fw, flow_bw = pyramid_processing(batch_img0, batch_img1, batch_img2, train=False, trainable=False, is_scale=True) 
+            flow_fw['full_res'] = flow_resize(flow_fw['full_res'], [h, w], method=1)
+            flow_bw['full_res'] = flow_resize(flow_bw['full_res'], [h, w], method=1)
+            
+            flow_fw_color = flow_to_color(flow_fw['full_res'], mask=None, max_flow=256)
+            flow_bw_color = flow_to_color(flow_bw['full_res'], mask=None, max_flow=256)
+            
+            restore_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) 
+            saver = tf.train.Saver(var_list=restore_vars)
+            sess = tf.Session()
+            sess.run(tf.global_variables_initializer()) 
+            sess.run(iterator.initializer) 
+            saver.restore(sess, restore_model)
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)           
+            for i in range(dataset.data_num):
+                np_flow_fw, np_flow_bw, np_flow_fw_color, np_flow_bw_color = sess.run([flow_fw['full_res'], flow_bw['full_res'], flow_fw_color, flow_bw_color])
+                write_flo('%s/abnormal-frames-maskr-112/Train/%s/%s.flo' % (save_dir, folder_name, save_name_list[i]), np_flow_fw[0])
+                #write_flo('%s/flow_bw_%s.flo' % (save_dir, save_name_list[i]), np_flow_bw[0])
+                #print('Finish %d/%d' % (i+1, dataset.data_num))

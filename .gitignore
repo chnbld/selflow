@@ -1,2 +1,6 @@
 # python cache
 *.pyc
+images/
+img_list/
+models/
+Sintel/

@@ -57,4 +57,4 @@ def main(_):
         raise ValueError('Invalid mode. Mode should be one of {test}')
 
 if __name__ == '__main__':
-    tf.app.run() 
+    tf.compat.v1.app.run() 
